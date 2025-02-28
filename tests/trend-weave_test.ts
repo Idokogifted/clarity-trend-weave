@@ -2,7 +2,7 @@ import { Clarinet, Tx, Chain, Account, types } from 'https://deno.land/x/clarine
 import { assertEquals } from 'https://deno.land/std@0.90.0/testing/asserts.ts';
 
 Clarinet.test({
-  name: "Ensure can create trend",
+  name: "Ensure can create trend with valid input",
   async fn(chain: Chain, accounts: Map<string, Account>) {
     const wallet_1 = accounts.get("wallet_1")!;
     
@@ -23,7 +23,24 @@ Clarinet.test({
 });
 
 Clarinet.test({
-  name: "Ensure can vote on trend",
+  name: "Ensure cannot create trend with empty title",
+  async fn(chain: Chain, accounts: Map<string, Account>) {
+    const wallet_1 = accounts.get("wallet_1")!;
+    
+    let block = chain.mineBlock([
+      Tx.contractCall("trend-weave", "create-trend", [
+        types.utf8(""),
+        types.utf8("Test Description"),
+        types.list([types.utf8("tag1")])
+      ], wallet_1.address)
+    ]);
+    
+    assertEquals(block.receipts[0].result, `(err u400)`);
+  },
+});
+
+Clarinet.test({
+  name: "Ensure can vote once on trend",
   async fn(chain: Chain, accounts: Map<string, Account>) {
     const wallet_1 = accounts.get("wallet_1")!;
     const wallet_2 = accounts.get("wallet_2")!;
@@ -45,5 +62,12 @@ Clarinet.test({
     
     const result = chain.callReadOnlyFn("trend-weave", "get-trend", [types.uint(0)], wallet_1.address);
     assertEquals(result.result.expectOk().expectSome().data["upvotes"].value, types.uint(1));
+    
+    // Try voting again
+    block = chain.mineBlock([
+      Tx.contractCall("trend-weave", "vote", [types.uint(0), types.bool(true)], wallet_2.address)
+    ]);
+    
+    assertEquals(block.receipts[0].result, `(err u403)`);
   },
 });
